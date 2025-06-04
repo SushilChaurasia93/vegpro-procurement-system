@@ -32,32 +32,35 @@ requirements_collection = db.requirements
 # Pydantic models
 class Hotel(BaseModel):
     id: str
-    name: str
+    hotel_number: str
+    hotel_name: str
     manager_name: str
-    manager_phone: str
+    whatsapp: str
 
 class HotelCreate(BaseModel):
-    name: str
+    hotel_number: str
+    hotel_name: str
     manager_name: str
-    manager_phone: str
+    whatsapp: str
 
 class HotelUpdate(BaseModel):
-    name: Optional[str] = None
+    hotel_number: Optional[str] = None
+    hotel_name: Optional[str] = None
     manager_name: Optional[str] = None
-    manager_phone: Optional[str] = None
+    whatsapp: Optional[str] = None
 
 class Seller(BaseModel):
     id: str
     name: str
-    phone: str
+    whatsapp: str
 
 class SellerCreate(BaseModel):
     name: str
-    phone: str
+    whatsapp: str
 
 class SellerUpdate(BaseModel):
     name: Optional[str] = None
-    phone: Optional[str] = None
+    whatsapp: Optional[str] = None
 
 class VegetableCreate(BaseModel):
     name: str
@@ -93,35 +96,36 @@ async def initialize_data():
     if hotels_collection.count_documents({}) > 0:
         return
     
-    # Create sample hotels
+    # Create sample hotels with new structure
     hotels = []
     for i in range(1, 11):
         hotel = {
             "id": str(uuid.uuid4()),
-            "name": f"Hotel {i}",
+            "hotel_number": f"HTL{i:03d}",
+            "hotel_name": f"Hotel {i}",
             "manager_name": f"Manager {i}",
-            "manager_phone": f"+1234567{i:03d}"
+            "whatsapp": f"+91987654{i:04d}"
         }
         hotels.append(hotel)
     hotels_collection.insert_many(hotels)
     
-    # Create sample sellers and vegetables
+    # Create sample sellers with WhatsApp
     sellers_data = [
-        {"name": "Green Grocers", "vegetables": ["Spinach", "Lettuce", "Cabbage", "Broccoli", "Kale"]},
-        {"name": "Fresh Farms", "vegetables": ["Tomatoes", "Onions", "Potatoes", "Carrots", "Garlic"]},
-        {"name": "Organic Supply", "vegetables": ["Bell Peppers", "Cucumber", "Eggplant", "Zucchini", "Okra"]},
-        {"name": "Herb Masters", "vegetables": ["Mint", "Coriander", "Parsley", "Basil", "Dill"]},
-        {"name": "Root Veggies Co", "vegetables": ["Beetroot", "Radish", "Turnip", "Sweet Potato", "Ginger"]}
+        {"name": "Green Grocers", "whatsapp": "+919876543001", "vegetables": ["Spinach", "Lettuce", "Cabbage", "Broccoli", "Kale"]},
+        {"name": "Fresh Farms", "whatsapp": "+919876543002", "vegetables": ["Tomatoes", "Onions", "Potatoes", "Carrots", "Garlic"]},
+        {"name": "Organic Supply", "whatsapp": "+919876543003", "vegetables": ["Bell Peppers", "Cucumber", "Eggplant", "Zucchini", "Okra"]},
+        {"name": "Herb Masters", "whatsapp": "+919876543004", "vegetables": ["Mint", "Coriander", "Parsley", "Basil", "Dill"]},
+        {"name": "Root Veggies Co", "whatsapp": "+919876543005", "vegetables": ["Beetroot", "Radish", "Turnip", "Sweet Potato", "Ginger"]}
     ]
     
     sellers = []
     vegetables = []
-    for i, seller_data in enumerate(sellers_data):
+    for seller_data in sellers_data:
         seller_id = str(uuid.uuid4())
         seller = {
             "id": seller_id,
             "name": seller_data["name"],
-            "phone": f"+9876543{i:03d}"
+            "whatsapp": seller_data["whatsapp"]
         }
         sellers.append(seller)
         
@@ -145,11 +149,17 @@ async def get_hotels():
 
 @app.post("/api/hotels")
 async def create_hotel(hotel: HotelCreate):
+    # Check if hotel number already exists
+    existing = hotels_collection.find_one({"hotel_number": hotel.hotel_number})
+    if existing:
+        raise HTTPException(status_code=400, detail="Hotel number already exists")
+    
     new_hotel = {
         "id": str(uuid.uuid4()),
-        "name": hotel.name,
+        "hotel_number": hotel.hotel_number,
+        "hotel_name": hotel.hotel_name,
         "manager_name": hotel.manager_name,
-        "manager_phone": hotel.manager_phone
+        "whatsapp": hotel.whatsapp
     }
     hotels_collection.insert_one(new_hotel)
     del new_hotel["_id"]
@@ -161,13 +171,21 @@ async def update_hotel(hotel_id: str, hotel_update: HotelUpdate):
     if not existing:
         raise HTTPException(status_code=404, detail="Hotel not found")
     
+    # Check if hotel number is being changed and if it already exists
+    if hotel_update.hotel_number and hotel_update.hotel_number != existing["hotel_number"]:
+        existing_number = hotels_collection.find_one({"hotel_number": hotel_update.hotel_number})
+        if existing_number:
+            raise HTTPException(status_code=400, detail="Hotel number already exists")
+    
     update_data = {}
-    if hotel_update.name is not None:
-        update_data["name"] = hotel_update.name
+    if hotel_update.hotel_number is not None:
+        update_data["hotel_number"] = hotel_update.hotel_number
+    if hotel_update.hotel_name is not None:
+        update_data["hotel_name"] = hotel_update.hotel_name
     if hotel_update.manager_name is not None:
         update_data["manager_name"] = hotel_update.manager_name
-    if hotel_update.manager_phone is not None:
-        update_data["manager_phone"] = hotel_update.manager_phone
+    if hotel_update.whatsapp is not None:
+        update_data["whatsapp"] = hotel_update.whatsapp
     
     if update_data:
         hotels_collection.update_one({"id": hotel_id}, {"$set": update_data})
@@ -194,7 +212,7 @@ async def create_seller(seller: SellerCreate):
     new_seller = {
         "id": str(uuid.uuid4()),
         "name": seller.name,
-        "phone": seller.phone
+        "whatsapp": seller.whatsapp
     }
     sellers_collection.insert_one(new_seller)
     del new_seller["_id"]
@@ -209,8 +227,8 @@ async def update_seller(seller_id: str, seller_update: SellerUpdate):
     update_data = {}
     if seller_update.name is not None:
         update_data["name"] = seller_update.name
-    if seller_update.phone is not None:
-        update_data["phone"] = seller_update.phone
+    if seller_update.whatsapp is not None:
+        update_data["whatsapp"] = seller_update.whatsapp
     
     if update_data:
         sellers_collection.update_one({"id": seller_id}, {"$set": update_data})
@@ -269,7 +287,7 @@ async def get_requirements(hotel_id: Optional[str] = None, seller_id: Optional[s
     for req in requirements:
         hotel = hotels_collection.find_one({"id": req["hotel_id"]}, {"_id": 0})
         vegetable = vegetables_collection.find_one({"id": req["vegetable_id"]}, {"_id": 0})
-        req["hotel_name"] = hotel["name"] if hotel else "Unknown"
+        req["hotel_name"] = hotel["hotel_name"] if hotel else "Unknown"
         req["vegetable_name"] = vegetable["name"] if vegetable else "Unknown"
         req["unit"] = vegetable["unit"] if vegetable else "kg"
     
@@ -399,9 +417,9 @@ async def get_admin_matrix_dashboard(date: Optional[str] = None):
     requirements = list(requirements_collection.find({"date": date}, {"_id": 0}))
     hotels = list(hotels_collection.find({}, {"_id": 0}))
     try:
-        hotels.sort(key=lambda x: int(x["name"].replace("Hotel ", "")))
+        hotels.sort(key=lambda x: int(x["hotel_number"].replace("HTL", "")))
     except (ValueError, IndexError):
-        hotels.sort(key=lambda x: x["name"])
+        hotels.sort(key=lambda x: x["hotel_name"])
     
     all_vegetables = list(vegetables_collection.find({}, {"_id": 0}))
     
