@@ -73,10 +73,18 @@ function App() {
 
   // Admin Dashboard
   const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTab] = useState('matrix');
     const [dashboardData, setDashboardData] = useState(null);
     const [matrixData, setMatrixData] = useState(null);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Seller management states
+    const [sellerForm, setSellerForm] = useState({ name: '', whatsapp: '' });
+    const [editingSeller, setEditingSeller] = useState(null);
+
+    // Hotel management states
+    const [hotelForm, setHotelForm] = useState({ hotel_number: '', hotel_name: '', manager_name: '', whatsapp: '' });
+    const [editingHotel, setEditingHotel] = useState(null);
 
     useEffect(() => {
       fetchDashboardData();
@@ -110,6 +118,90 @@ function App() {
         case 'pending': return '⏳';
         default: return '';
       }
+    };
+
+    // Seller management functions
+    const saveSeller = async () => {
+      try {
+        const url = editingSeller 
+          ? `${API_BASE_URL}/api/sellers/${editingSeller.id}`
+          : `${API_BASE_URL}/api/sellers`;
+        const method = editingSeller ? 'put' : 'post';
+        
+        await axios[method](url, sellerForm);
+        
+        setSellerForm({ name: '', whatsapp: '' });
+        setEditingSeller(null);
+        fetchInitialData();
+      } catch (error) {
+        console.error('Error saving seller:', error);
+        alert('Error saving seller. Please try again.');
+      }
+    };
+
+    const deleteSeller = async (sellerId) => {
+      if (window.confirm('Are you sure you want to delete this seller? This will also delete all associated vegetables.')) {
+        try {
+          await axios.delete(`${API_BASE_URL}/api/sellers/${sellerId}`);
+          fetchInitialData();
+        } catch (error) {
+          console.error('Error deleting seller:', error);
+          alert('Error deleting seller. Please try again.');
+        }
+      }
+    };
+
+    const editSeller = (seller) => {
+      setSellerForm({
+        name: seller.name,
+        whatsapp: seller.whatsapp
+      });
+      setEditingSeller(seller);
+    };
+
+    // Hotel management functions
+    const saveHotel = async () => {
+      try {
+        const url = editingHotel 
+          ? `${API_BASE_URL}/api/hotels/${editingHotel.id}`
+          : `${API_BASE_URL}/api/hotels`;
+        const method = editingHotel ? 'put' : 'post';
+        
+        await axios[method](url, hotelForm);
+        
+        setHotelForm({ hotel_number: '', hotel_name: '', manager_name: '', whatsapp: '' });
+        setEditingHotel(null);
+        fetchInitialData();
+      } catch (error) {
+        console.error('Error saving hotel:', error);
+        if (error.response?.data?.detail === 'Hotel number already exists') {
+          alert('Hotel number already exists. Please use a different hotel number.');
+        } else {
+          alert('Error saving hotel. Please try again.');
+        }
+      }
+    };
+
+    const deleteHotel = async (hotelId) => {
+      if (window.confirm('Are you sure you want to delete this hotel? This will also delete all associated requirements.')) {
+        try {
+          await axios.delete(`${API_BASE_URL}/api/hotels/${hotelId}`);
+          fetchInitialData();
+        } catch (error) {
+          console.error('Error deleting hotel:', error);
+          alert('Error deleting hotel. Please try again.');
+        }
+      }
+    };
+
+    const editHotel = (hotel) => {
+      setHotelForm({
+        hotel_number: hotel.hotel_number,
+        hotel_name: hotel.hotel_name,
+        manager_name: hotel.manager_name,
+        whatsapp: hotel.whatsapp
+      });
+      setEditingHotel(hotel);
     };
 
     return (
@@ -153,8 +245,9 @@ function App() {
           <div className="bg-white rounded-xl shadow-lg mb-6">
             <div className="flex border-b">
               {[
-                { id: 'dashboard', label: 'Overview', icon: '📊' },
-                { id: 'matrix', label: 'Orders Matrix', icon: '📋' }
+                { id: 'matrix', label: 'Orders Matrix', icon: '📋' },
+                { id: 'sellers', label: 'Manage Sellers', icon: '🚚' },
+                { id: 'hotels', label: 'Manage Hotels', icon: '🏨' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -172,27 +265,7 @@ function App() {
             </div>
           </div>
 
-          {/* Tab Content */}
-          {activeTab === 'dashboard' && (
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Welcome Admin!</h2>
-              <p className="text-gray-600 mb-4">Manage your vegetable procurement system from this dashboard.</p>
-              
-              {dashboardData && (
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-yellow-800">Pending Orders</h3>
-                    <p className="text-2xl font-bold text-yellow-600">{dashboardData.pending_count}</p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-green-800">Delivered Orders</h3>
-                    <p className="text-2xl font-bold text-green-600">{dashboardData.delivered_count}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* Orders Matrix Tab */}
           {activeTab === 'matrix' && (
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6">
@@ -217,7 +290,8 @@ function App() {
                           <th key={hotel.id} className="text-center p-3 font-semibold text-gray-700 bg-gray-50 min-w-24">
                             <div className="flex flex-col items-center gap-1">
                               <span>{getStatusIcon(matrixData.hotel_status[hotel.id])}</span>
-                              <span className="text-sm">{hotel.name}</span>
+                              <span className="text-sm">{hotel.hotel_number}</span>
+                              <span className="text-xs text-gray-500">{hotel.hotel_name}</span>
                               {matrixData.hotel_status[hotel.id] === 'pending' && (
                                 <button 
                                   onClick={() => markHotelDelivered(hotel.id)}
@@ -265,6 +339,173 @@ function App() {
               )}
             </div>
           )}
+
+          {/* Sellers Management Tab */}
+          {activeTab === 'sellers' && (
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Seller Form */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4">
+                  {editingSeller ? 'Edit Seller' : 'Add New Seller'}
+                </h2>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Seller Name"
+                    value={sellerForm.name}
+                    onChange={(e) => setSellerForm(prev => ({...prev, name: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="WhatsApp Number (e.g., +919876543210)"
+                    value={sellerForm.whatsapp}
+                    onChange={(e) => setSellerForm(prev => ({...prev, whatsapp: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveSeller}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      {editingSeller ? 'Update' : 'Add'} Seller
+                    </button>
+                    {editingSeller && (
+                      <button
+                        onClick={() => {
+                          setEditingSeller(null);
+                          setSellerForm({ name: '', whatsapp: '' });
+                        }}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sellers List */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4">Sellers List</h2>
+                <div className="space-y-3">
+                  {sellers.map(seller => (
+                    <div key={seller.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div>
+                        <div className="font-medium">{seller.name}</div>
+                        <div className="text-sm text-gray-600">WhatsApp: {seller.whatsapp}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editSeller(seller)}
+                          className="text-blue-600 hover:text-blue-800 px-2 py-1 text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteSeller(seller.id)}
+                          className="text-red-600 hover:text-red-800 px-2 py-1 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hotels Management Tab */}
+          {activeTab === 'hotels' && (
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Hotel Form */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4">
+                  {editingHotel ? 'Edit Hotel' : 'Add New Hotel'}
+                </h2>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Hotel Number (e.g., HTL001)"
+                    value={hotelForm.hotel_number}
+                    onChange={(e) => setHotelForm(prev => ({...prev, hotel_number: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Hotel Name"
+                    value={hotelForm.hotel_name}
+                    onChange={(e) => setHotelForm(prev => ({...prev, hotel_name: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Manager Name"
+                    value={hotelForm.manager_name}
+                    onChange={(e) => setHotelForm(prev => ({...prev, manager_name: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="WhatsApp Number (e.g., +919876543210)"
+                    value={hotelForm.whatsapp}
+                    onChange={(e) => setHotelForm(prev => ({...prev, whatsapp: e.target.value}))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveHotel}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      {editingHotel ? 'Update' : 'Add'} Hotel
+                    </button>
+                    {editingHotel && (
+                      <button
+                        onClick={() => {
+                          setEditingHotel(null);
+                          setHotelForm({ hotel_number: '', hotel_name: '', manager_name: '', whatsapp: '' });
+                        }}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Hotels List */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4">Hotels List</h2>
+                <div className="space-y-3">
+                  {hotels.map(hotel => (
+                    <div key={hotel.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div>
+                        <div className="font-medium">{hotel.hotel_number} - {hotel.hotel_name}</div>
+                        <div className="text-sm text-gray-600">Manager: {hotel.manager_name}</div>
+                        <div className="text-sm text-gray-600">WhatsApp: {hotel.whatsapp}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editHotel(hotel)}
+                          className="text-blue-600 hover:text-blue-800 px-2 py-1 text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteHotel(hotel.id)}
+                          className="text-red-600 hover:text-red-800 px-2 py-1 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -291,9 +532,10 @@ function App() {
               onClick={() => setSelectedUser(hotel)}
               className="bg-white rounded-xl shadow-lg p-6 cursor-pointer transform hover:scale-105 transition-all duration-300 border-2 border-transparent hover:border-blue-300"
             >
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">{hotel.name}</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">{hotel.hotel_number}</h3>
+              <h4 className="text-md font-medium text-gray-700 mb-1">{hotel.hotel_name}</h4>
               <p className="text-gray-600 text-sm">Manager: {hotel.manager_name}</p>
-              <p className="text-gray-600 text-sm">Phone: {hotel.manager_phone}</p>
+              <p className="text-gray-600 text-sm">WhatsApp: {hotel.whatsapp}</p>
             </div>
           ))}
         </div>
@@ -365,8 +607,9 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">{selectedUser.name}</h1>
+              <h1 className="text-3xl font-bold text-gray-800">{selectedUser.hotel_number} - {selectedUser.hotel_name}</h1>
               <p className="text-gray-600">Manager: {selectedUser.manager_name}</p>
+              <p className="text-gray-600">WhatsApp: {selectedUser.whatsapp}</p>
             </div>
             <button 
               onClick={() => {setCurrentRole(null); setSelectedUser(null);}}
